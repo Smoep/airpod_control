@@ -9,6 +9,10 @@ import XCTest
 
 final class airpod_controlUITestsLaunchTests: XCTestCase {
 
+    private func requireInteractiveAutomation() throws {
+        throw XCTSkip("UI tests require an interactive macOS automation session.")
+    }
+
     override class var runsForEachTargetApplicationUIConfiguration: Bool {
         true
     }
@@ -19,6 +23,7 @@ final class airpod_controlUITestsLaunchTests: XCTestCase {
 
     @MainActor
     func testLaunch() throws {
+        try requireInteractiveAutomation()
         let app = XCUIApplication()
         app.launch()
 

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>LSUIElement</key>
+	<true/>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>airpod_control sends keystrokes to System Events to switch desktop spaces.</string>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>airpod_control uses Bluetooth to detect and stream AirPods motion diagnostics.</string>
+	<key>NSBluetoothPeripheralUsageDescription</key>
+	<string>airpod_control uses Bluetooth to communicate with supported AirPods.</string>
+	<key>NSBluetoothServices</key>
+	<array>
+		<string>180A</string>
+	</array>
+	<key>NSMotionUsageDescription</key>
+	<string>airpod_control reads headphone motion data to show live attitude and acceleration diagnostics.</string>
+</dict>
+</plist>
