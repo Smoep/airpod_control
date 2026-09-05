@@ -24,7 +24,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		80D7A4972F9CDD46004150D9 /* airpod_control.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = airpod_control.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		80D7A4972F9CDD46004150D9 /* AirPods Control.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "AirPods Control.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		80D7A4A42F9CDD47004150D9 /* airpod_controlTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = airpod_controlTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		80D7A4AE2F9CDD47004150D9 /* airpod_controlUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = airpod_controlUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -98,7 +98,7 @@
 		80D7A4982F9CDD46004150D9 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				80D7A4972F9CDD46004150D9 /* airpod_control.app */,
+				80D7A4972F9CDD46004150D9 /* AirPods Control.app */,
 				80D7A4A42F9CDD47004150D9 /* airpod_controlTests.xctest */,
 				80D7A4AE2F9CDD47004150D9 /* airpod_controlUITests.xctest */,
 			);
@@ -127,7 +127,7 @@
 			packageProductDependencies = (
 			);
 			productName = airpod_control;
-			productReference = 80D7A4972F9CDD46004150D9 /* airpod_control.app */;
+			productReference = 80D7A4972F9CDD46004150D9 /* AirPods Control.app */;
 			productType = "com.apple.product-type.application";
 		};
 		80D7A4A32F9CDD47004150D9 /* airpod_controlTests */ = {
@@ -409,7 +409,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = A6CM288C33;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -417,7 +417,7 @@
 				ENABLE_OUTGOING_NETWORK_CONNECTIONS = NO;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_RESOURCE_ACCESS_AUDIO_INPUT = NO;
-				ENABLE_RESOURCE_ACCESS_BLUETOOTH = YES;
+				ENABLE_RESOURCE_ACCESS_BLUETOOTH = NO;
 				ENABLE_RESOURCE_ACCESS_CALENDARS = NO;
 				ENABLE_RESOURCE_ACCESS_CAMERA = NO;
 				ENABLE_RESOURCE_ACCESS_CONTACTS = NO;
@@ -429,17 +429,16 @@
 				INFOPLIST_FILE = "airpod-control-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "AirPods Control";
 				INFOPLIST_KEY_CFBundleName = "AirPods Control";
-				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "AirPods Control uses Bluetooth to detect and stream AirPods motion diagnostics.";
-				INFOPLIST_KEY_NSBluetoothPeripheralUsageDescription = "AirPods Control uses Bluetooth to communicate with supported AirPods.";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INFOPLIST_KEY_NSMotionUsageDescription = "AirPods Control reads headphone motion data to show live attitude and acceleration diagnostics.";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.0.0;
+				MARKETING_VERSION = 1.0.1;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.jos.airpod-control";
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_MODULE_NAME = airpod_control;
+				PRODUCT_NAME = "AirPods Control";
 				REGISTER_APP_GROUPS = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -457,7 +456,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = A6CM288C33;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -465,7 +464,7 @@
 				ENABLE_OUTGOING_NETWORK_CONNECTIONS = NO;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_RESOURCE_ACCESS_AUDIO_INPUT = NO;
-				ENABLE_RESOURCE_ACCESS_BLUETOOTH = YES;
+				ENABLE_RESOURCE_ACCESS_BLUETOOTH = NO;
 				ENABLE_RESOURCE_ACCESS_CALENDARS = NO;
 				ENABLE_RESOURCE_ACCESS_CAMERA = NO;
 				ENABLE_RESOURCE_ACCESS_CONTACTS = NO;
@@ -477,17 +476,16 @@
 				INFOPLIST_FILE = "airpod-control-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "AirPods Control";
 				INFOPLIST_KEY_CFBundleName = "AirPods Control";
-				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "AirPods Control uses Bluetooth to detect and stream AirPods motion diagnostics.";
-				INFOPLIST_KEY_NSBluetoothPeripheralUsageDescription = "AirPods Control uses Bluetooth to communicate with supported AirPods.";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INFOPLIST_KEY_NSMotionUsageDescription = "AirPods Control reads headphone motion data to show live attitude and acceleration diagnostics.";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.0.0;
+				MARKETING_VERSION = 1.0.1;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.jos.airpod-control";
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_MODULE_NAME = airpod_control;
+				PRODUCT_NAME = "AirPods Control";
 				REGISTER_APP_GROUPS = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -515,7 +513,7 @@
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 6.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/airpod_control.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/airpod_control";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/AirPods Control.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/AirPods Control";
 			};
 			name = Debug;
 		};
@@ -536,7 +534,7 @@
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 6.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/airpod_control.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/airpod_control";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/AirPods Control.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/AirPods Control";
 			};
 			name = Release;
 		};

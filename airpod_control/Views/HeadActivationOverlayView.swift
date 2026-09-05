@@ -29,12 +29,8 @@ struct HeadActivationOverlayView: View {
     var body: some View {
         ZStack {
             RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .fill(Color.black.opacity(max(0.15, opacity * 0.45)))
+                .fill(Color.black)
                 .frame(width: size, height: size)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 20, style: .continuous)
-                        .stroke(gateColor.opacity(showsGateStatus ? 0.55 : 0.25), lineWidth: showsGateStatus ? 1.5 : 1)
-                )
 
             HeadGlobeView(
                 radius: radius,
@@ -77,6 +73,7 @@ struct HeadActivationOverlayView: View {
                 .padding(.bottom, 12)
             }
         }
+        .opacity(min(max(opacity, 0), 1))
         .shadow(color: .black.opacity(0.25), radius: 10, y: 4)
     }
 }

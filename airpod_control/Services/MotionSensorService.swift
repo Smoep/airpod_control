@@ -31,9 +31,17 @@ enum MotionSensorError: LocalizedError {
     }
 }
 
-final class MotionSensorService {
+@MainActor
+final class MotionSensorService: NSObject, CMHeadphoneMotionManagerDelegate {
     private var manager = CMHeadphoneMotionManager()
     private(set) var isStreaming = false
+    private var onConnected: (@MainActor @Sendable () -> Void)?
+    private var onDisconnected: (@MainActor @Sendable () -> Void)?
+
+    override init() {
+        super.init()
+        configureConnectionMonitoring()
+    }
 
     var authorizationState: AuthorizationState {
         AuthorizationState(status: CMHeadphoneMotionManager.authorizationStatus())
@@ -41,6 +49,14 @@ final class MotionSensorService {
 
     var isHeadphoneMotionAvailable: Bool {
         manager.isDeviceMotionAvailable
+    }
+
+    func setConnectionHandlers(
+        onConnected: @escaping @MainActor @Sendable () -> Void,
+        onDisconnected: @escaping @MainActor @Sendable () -> Void
+    ) {
+        self.onConnected = onConnected
+        self.onDisconnected = onDisconnected
     }
 
     func startStreaming(
@@ -120,11 +136,19 @@ final class MotionSensorService {
         dbgLog("DONE MotionSensorService.stopStreaming isStreaming=\(isStreaming)")
     }
 
-    func resetManager(reason: String) {
-        dbgLog("ENTRY MotionSensorService.resetManager reason=\(reason) isStreaming=\(isStreaming)")
-        manager.stopDeviceMotionUpdates()
-        manager = CMHeadphoneMotionManager()
-        isStreaming = false
-        dbgLog("DONE MotionSensorService.resetManager reason=\(reason) auth=\(authorizationState.rawValue) available=\(isHeadphoneMotionAvailable)")
+    func headphoneMotionManagerDidConnect(_ manager: CMHeadphoneMotionManager) {
+        dbgLog("INPUT headphone_connection state=connected available=\(manager.isDeviceMotionAvailable)")
+        onConnected?()
+    }
+
+    func headphoneMotionManagerDidDisconnect(_ manager: CMHeadphoneMotionManager) {
+        dbgLog("INPUT headphone_connection state=disconnected available=\(manager.isDeviceMotionAvailable)")
+        onDisconnected?()
+    }
+
+    private func configureConnectionMonitoring() {
+        manager.delegate = self
+        manager.startConnectionStatusUpdates()
+        dbgLog("EXTERNAL CMHeadphoneMotionManager.startConnectionStatusUpdates return=started")
     }
 }

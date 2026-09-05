@@ -51,8 +51,8 @@ jobs:
 
       - name: Verify target and architecture
         run: |
-          APP="build-release/Build/Products/Release/airpod_control.app"
-          BIN="$APP/Contents/MacOS/airpod_control"
+          APP="build-release/Build/Products/Release/AirPods Control.app"
+          BIN="$APP/Contents/MacOS/AirPods Control"
           vtool -show-build "$BIN"
           MINOS=$(vtool -show-build "$BIN" | awk '/minos/ {print $NF}')
           if [[ "$MINOS" != 26.* ]]; then
@@ -71,7 +71,7 @@ jobs:
           TAG: ${{ github.ref_name }}
         run: |
           mkdir -p release-stage
-          ditto build-release/Build/Products/Release/airpod_control.app "release-stage/AirPods Control.app"
+          ditto "build-release/Build/Products/Release/AirPods Control.app" "release-stage/AirPods Control.app"
           ditto -c -k --sequesterRsrc --keepParent \
             "release-stage/AirPods Control.app" \
             "$GITHUB_WORKSPACE/AirPods-Control-$TAG.zip"

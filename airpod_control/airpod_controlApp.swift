@@ -28,6 +28,7 @@ struct airpod_controlApp: App {
         let store = LiveSensorStore()
         _store = State(initialValue: store)
         Task { @MainActor in
+            HeadActivationOverlayWindowController.shared.bind(to: store)
             if store.isGestureDetectionEnabled {
                 store.startStreaming()
             }

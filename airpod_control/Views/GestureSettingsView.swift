@@ -185,7 +185,7 @@ struct GestureSettingsView: View {
                         .toggleStyle(.switch)
 
                     settingExplanation(
-                        "Show Overlay When Active displays the floating head-position overlay in the top-right corner while gesture activation is on."
+                        "Show Overlay When Active displays the floating head-position overlay in the center of the active screen while gesture activation is on, across every desktop."
                     )
 
                     Toggle("Show Trail", isOn: $store.appearanceSettings.showTrail)
@@ -204,7 +204,7 @@ struct GestureSettingsView: View {
                     )
 
                     settingExplanation(
-                        "Overlay Opacity changes how transparent the overlay looks. Lower values make it less visually dominant."
+                        "Overlay Opacity changes the transparency of the complete overlay. A value of 1 is fully opaque."
                     )
 
                     sliderRow(
@@ -224,7 +224,7 @@ struct GestureSettingsView: View {
                     permissionRow(
                         title: "Accessibility",
                         isGranted: permissionSnapshot.accessibilityGranted,
-                        detail: "Required to control other app windows and send gesture-triggered shortcuts outside airpod_control."
+                        detail: "Required to control other app windows and send gesture-triggered shortcuts outside AirPods Control."
                     )
 
                     permissionRow(

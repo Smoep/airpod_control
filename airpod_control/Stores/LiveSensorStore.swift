@@ -62,6 +62,7 @@ final class LiveSensorStore {
     @ObservationIgnored private var previousSampleTimestamp: Date?
     @ObservationIgnored private var previousDeviceTimestamp: TimeInterval?
     @ObservationIgnored private var noSampleWatchdogTask: Task<Void, Never>?
+    @ObservationIgnored private var automaticReconnectTask: Task<Void, Never>?
     @ObservationIgnored private var streamStartTimestamp: Date?
     @ObservationIgnored private var maxSamples: Int = 4_000
 
@@ -101,6 +102,7 @@ final class LiveSensorStore {
     private let alwaysOnMaximumCaptureDuration: TimeInterval = 0.90
     private let streamStartupNoSampleTimeout: TimeInterval = 2.0
     private let streamStaleSampleTimeout: TimeInterval = 4.0
+    private let automaticReconnectInterval: TimeInterval = 1.5
     private let alwaysOnReturnAxisYaw = 1
     private let alwaysOnReturnAxisPitch = 2
     private let alwaysOnReturnAxisRoll = 4
@@ -307,6 +309,14 @@ final class LiveSensorStore {
         recognitionSettings = gestureStore.loadRecognitionSettings()
         appearanceSettings = gestureStore.loadAppearanceSettings()
         isGestureDetectionEnabled = gestureStore.loadTrackingEnabled()
+        motionService.setConnectionHandlers(
+            onConnected: { [weak self] in
+                self?.handleHeadphonesConnected()
+            },
+            onDisconnected: { [weak self] in
+                self?.handleHeadphonesDisconnected()
+            }
+        )
         seedCalibrationGestureSetIfNeeded()
         let permissionSnapshot = ActionPermissionService.currentSnapshot()
         dbgLog("LIFECYCLE settings_load gestures=\(gestures.count) tracking=\(isGestureDetectionEnabled) debugMode=\(debugMode) activationLayer=\(recognitionSettings.activationLayer.rawValue) accessibility=\(permissionSnapshot.accessibilityGranted) post_events=\(permissionSnapshot.postEventsGranted) input_monitoring=\(permissionSnapshot.inputMonitoringGranted)")
@@ -314,7 +324,10 @@ final class LiveSensorStore {
 
     func startStreaming() {
         dbgLog("ENTRY start_streaming mode=\(samplingMode.rawValue) diagnostics=\(streamDiagnostics)")
-        if case .active = streamState { return }
+        guard !motionService.isStreaming else {
+            dbgLog("BAIL start_streaming reason=already_streaming state=\(streamState.label)")
+            return
+        }
 
         errorMessage = nil
         lastUpdateTimestamp = nil
@@ -330,10 +343,7 @@ final class LiveSensorStore {
                     self?.processMotionSample(packet)
                 },
                 onError: { [weak self] error in
-                    dbgLog("BAIL start_streaming reason=motion_callback_error error=\(error.localizedDescription)")
-                    self?.streamState = .error(error.localizedDescription)
-                    self?.statusMessage = "Stream error. \(self?.streamDiagnostics ?? "")"
-                    self?.errorMessage = self?.friendlyMessage(for: error) ?? error.localizedDescription
+                    self?.handleMotionStreamError(error)
                 }
             )
             startNoSampleWatchdog()
@@ -347,6 +357,9 @@ final class LiveSensorStore {
                 errorMessage = error.localizedDescription
             }
             dbgLog("BAIL start_streaming reason=throw error=\(error.localizedDescription) diagnostics=\(streamDiagnostics)")
+            if let motionError = error as? MotionSensorError, case .unavailable = motionError {
+                scheduleAutomaticReconnect(reason: "start_unavailable")
+            }
         }
     }
 
@@ -354,6 +367,7 @@ final class LiveSensorStore {
         dbgLog("ENTRY stop_streaming state=\(streamState.label)")
         motionService.stopStreaming()
         stopNoSampleWatchdog()
+        cancelAutomaticReconnect()
         streamStartTimestamp = nil
         resetGestureTrackingRuntime()
         streamState = .stopped
@@ -369,10 +383,98 @@ final class LiveSensorStore {
             return
         }
 
-        stopStreaming()
-        motionService.resetManager(reason: "manual_reconnect")
-        startStreaming()
+        restartMotionInput(reason: "manual_reconnect")
         dbgLog("DONE reconnect_motion_input result=restarted")
+    }
+
+    private func handleHeadphonesConnected() {
+        dbgLog("STATE headphone_connection disconnected -> connected tracking=\(isGestureDetectionEnabled) stream=\(streamState.label)")
+        guard isGestureDetectionEnabled else { return }
+        guard !motionService.isStreaming else { return }
+
+        restartMotionInput(reason: "headphones_connected")
+    }
+
+    private func handleHeadphonesDisconnected() {
+        dbgLog("STATE headphone_connection connected -> disconnected tracking=\(isGestureDetectionEnabled) stream=\(streamState.label)")
+        guard isGestureDetectionEnabled else { return }
+
+        motionService.stopStreaming()
+        stopNoSampleWatchdog()
+        streamStartTimestamp = nil
+        resetGestureTrackingRuntime()
+        streamState = .starting
+        statusMessage = "Waiting for AirPods motion…"
+        errorMessage = nil
+        scheduleAutomaticReconnect(reason: "headphones_disconnected")
+    }
+
+    private func handleMotionStreamError(_ error: MotionSensorError) {
+        dbgLog("BAIL start_streaming reason=motion_callback_error error=\(error.localizedDescription)")
+        motionService.stopStreaming()
+        stopNoSampleWatchdog()
+        streamState = .error(error.localizedDescription)
+        statusMessage = "Motion interrupted — reconnecting…"
+        errorMessage = friendlyMessage(for: error)
+
+        if case .unauthorized = error {
+            cancelAutomaticReconnect()
+        } else {
+            scheduleAutomaticReconnect(reason: "stream_error")
+        }
+    }
+
+    private func restartMotionInput(reason: String) {
+        dbgLog("ENTRY restart_motion_input reason=\(reason) available=\(motionService.isHeadphoneMotionAvailable) state=\(streamState.label)")
+        cancelAutomaticReconnect()
+        motionService.stopStreaming()
+        stopNoSampleWatchdog()
+        streamStartTimestamp = nil
+        resetGestureTrackingRuntime()
+        streamState = .stopped
+        startStreaming()
+        dbgLog("DONE restart_motion_input reason=\(reason) state=\(streamState.label)")
+    }
+
+    private func scheduleAutomaticReconnect(reason: String) {
+        guard isGestureDetectionEnabled else { return }
+        guard authorizationStateAllowsAutomaticReconnect else { return }
+        guard automaticReconnectTask == nil else { return }
+
+        dbgLog(String(format: "STATE motion_reconnect scheduled reason=%@ interval=%.1fs", reason, automaticReconnectInterval))
+        automaticReconnectTask = Task { [weak self] in
+            while !Task.isCancelled {
+                do {
+                    try await Task.sleep(for: .seconds(self?.automaticReconnectInterval ?? 1.5))
+                } catch {
+                    return
+                }
+
+                guard let self, self.isGestureDetectionEnabled else { return }
+                guard !self.motionService.isStreaming else {
+                    self.automaticReconnectTask = nil
+                    return
+                }
+                guard self.motionService.isHeadphoneMotionAvailable else {
+                    dbgVerboseLog("STATE motion_reconnect waiting reason=device_unavailable")
+                    continue
+                }
+
+                self.automaticReconnectTask = nil
+                self.restartMotionInput(reason: "automatic_device_available")
+                return
+            }
+        }
+    }
+
+    private var authorizationStateAllowsAutomaticReconnect: Bool {
+        let authorization = motionService.authorizationState
+        return authorization != .denied && authorization != .restricted
+    }
+
+    private func cancelAutomaticReconnect() {
+        automaticReconnectTask?.cancel()
+        automaticReconnectTask = nil
     }
 
     func armGestureRecording() {
@@ -796,9 +898,8 @@ final class LiveSensorStore {
             streamState = .error("No samples received after start.")
             statusMessage = "No data received"
             errorMessage = "No samples received after Start Stream. \(streamDiagnostics). If your AirPods are connected, verify Motion & Fitness permission and that headphone motion is supported on the current connection."
-            motionService.stopStreaming()
-            motionService.resetManager(reason: "no_samples")
             dbgLog(String(format: "BAIL start_streaming reason=no_samples started=%.2fs diagnostics=%@", startedFor, streamDiagnostics))
+            restartMotionInput(reason: "no_samples")
 
         case .active:
             guard isGestureDetectionEnabled || isRecordingGestureArmed || isRecordingGestureActive else { return }
@@ -2506,9 +2607,9 @@ final class LiveSensorStore {
     private func friendlyMessage(for error: MotionSensorError) -> String {
         switch error {
         case .unauthorized:
-            return "Motion permission is denied or restricted. Open System Settings > Privacy & Security and allow Motion access for airpod_control."
+            return "Motion permission is denied or restricted. Open System Settings > Privacy & Security and allow Motion access for AirPods Control."
         case .unavailable:
-            return "Headphone motion is currently unavailable even though audio may be connected. Re-seat AirPods, wait a few seconds, and try Start Stream again."
+            return "Waiting for compatible AirPods motion. Tracking will connect automatically when the headphones become available."
         case .streamFailed(let message):
             return "Core Motion stream failed: \(message)"
         }

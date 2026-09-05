@@ -10,14 +10,6 @@
 	<true/>
 	<key>NSAppleEventsUsageDescription</key>
 	<string>AirPods Control sends keystrokes to System Events to switch desktop spaces.</string>
-	<key>NSBluetoothAlwaysUsageDescription</key>
-	<string>AirPods Control uses Bluetooth to detect and stream AirPods motion diagnostics.</string>
-	<key>NSBluetoothPeripheralUsageDescription</key>
-	<string>AirPods Control uses Bluetooth to communicate with supported AirPods.</string>
-	<key>NSBluetoothServices</key>
-	<array>
-		<string>180A</string>
-	</array>
 	<key>NSMotionUsageDescription</key>
 	<string>AirPods Control reads headphone motion data to show live attitude and acceleration diagnostics.</string>
 </dict>

@@ -72,7 +72,7 @@ enum ActionPermissionService {
     }
 
     static func accessibilityErrorMessage(for actionDescription: String) -> String {
-        "airpod_control needs Accessibility permission to \(actionDescription). Open System Settings > Privacy & Security > Accessibility, allow airpod_control, then try again."
+        "AirPods Control needs Accessibility permission to \(actionDescription). Open System Settings > Privacy & Security > Accessibility, allow AirPods Control, then try again."
     }
 
     static func keyboardShortcutErrorMessage(for issue: KeyboardShortcutPermissionIssue) -> String {
@@ -80,7 +80,7 @@ enum ActionPermissionService {
         case .accessibility:
             return accessibilityErrorMessage(for: "send keyboard shortcuts")
         case .postEvents:
-            return "airpod_control can recognize the gesture, but macOS is blocking posted keyboard events. Re-open System Settings > Privacy & Security > Accessibility, re-enable airpod_control, and if you recently rebuilt the app remove the old entry and add it again before relaunching."
+            return "AirPods Control can recognize the gesture, but macOS is blocking posted keyboard events. Re-open System Settings > Privacy & Security > Accessibility, re-enable AirPods Control, and if you recently rebuilt the app remove the old entry and add it again before relaunching."
         }
     }
 }

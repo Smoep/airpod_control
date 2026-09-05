@@ -12,11 +12,12 @@ AirPods Control is a macOS menu-bar app that turns AirPods head motion into cust
 
 Download the ZIP, unzip it, and drag **AirPods Control.app** to your Applications folder.
 
-> **First launch:** release builds are not notarized. Right-click (or Control-click) **AirPods Control.app**, choose **Open**, then confirm **Open**. macOS may also request Motion, Bluetooth, Accessibility, or Automation permission when a feature first needs it.
+> **First launch:** release builds are not notarized. Right-click (or Control-click) **AirPods Control.app**, choose **Open**, then confirm **Open**. macOS may also request Motion, Accessibility, or Automation permission when a feature first needs it.
 
 ## What it does
 
 - Captures live orientation and acceleration from compatible AirPods through Core Motion
+- Connects motion automatically at launch and reconnects after the headphones return
 - Records trainable discrete gestures using yaw, pitch, roll, and short translation impulses
 - Supports an **Fn Key** activation layer or tuned **Always On** recognition
 - Provides continuous controls for volume, brightness, desktop switching, and custom shortcuts
@@ -45,7 +46,7 @@ xcodebuild -project airpod_control.xcodeproj \
   build \
   CODE_SIGNING_ALLOWED=NO \
   CODE_SIGNING_REQUIRED=NO
-ditto build-release/Build/Products/Release/airpod_control.app "/Applications/AirPods Control.app"
+ditto "build-release/Build/Products/Release/AirPods Control.app" "/Applications/AirPods Control.app"
 open "/Applications/AirPods Control.app"
 ```
 
