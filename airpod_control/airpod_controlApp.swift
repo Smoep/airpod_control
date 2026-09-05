@@ -27,10 +27,12 @@ struct airpod_controlApp: App {
         dbgLog("LIFECYCLE launch revision=\(AppRevision.current) log=\(DebugFileLog.logPath)")
         let store = LiveSensorStore()
         _store = State(initialValue: store)
-        Task { @MainActor in
-            HeadActivationOverlayWindowController.shared.bind(to: store)
-            if store.isGestureDetectionEnabled {
-                store.startStreaming()
+        if RuntimeEnvironment.shouldUsePhysicalMotionHardware {
+            Task { @MainActor in
+                HeadActivationOverlayWindowController.shared.bind(to: store)
+                if store.isGestureDetectionEnabled {
+                    store.startStreaming()
+                }
             }
         }
     }
@@ -39,9 +41,9 @@ struct airpod_controlApp: App {
         MenuBarExtra {
             AirpodControlMenuBarView(store: store)
         } label: {
-            Label(
-                "AirPods Control",
-                systemImage: store.isGestureDetectionEnabled ? "dot.radiowaves.left.and.right" : "pause.circle"
+            AirPodsControlMenuBarIcon(
+                isTrackingEnabled: store.isGestureDetectionEnabled,
+                isReceivingMotion: store.availabilityState.connectionState == .connected
             )
         }
 
@@ -52,6 +54,30 @@ struct airpod_controlApp: App {
                 }
         }
         .defaultLaunchBehavior(.suppressed)
+    }
+}
+
+private struct AirPodsControlMenuBarIcon: View {
+    let isTrackingEnabled: Bool
+    let isReceivingMotion: Bool
+
+    var body: some View {
+        Image(systemName: symbolName)
+            .font(.system(size: 13, weight: .medium))
+        .frame(width: 19, height: 16)
+        .accessibilityLabel(accessibilityLabel)
+    }
+
+    private var symbolName: String {
+        if !isTrackingEnabled { return "antenna.radiowaves.left.and.right.slash" }
+        if !isReceivingMotion { return "wifi.exclamationmark" }
+        return "dot.radiowaves.left.and.right"
+    }
+
+    private var accessibilityLabel: String {
+        if !isTrackingEnabled { return "AirPods Control, tracking paused" }
+        if !isReceivingMotion { return "AirPods Control, no motion connection" }
+        return "AirPods Control, connected"
     }
 }
 

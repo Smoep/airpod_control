@@ -12,6 +12,11 @@ import Foundation
 @MainActor
 struct airpod_controlTests {
 
+    @Test func automatedTestsNeverUsePhysicalMotionHardware() {
+        #expect(RuntimeEnvironment.isAutomatedTest)
+        #expect(!RuntimeEnvironment.shouldUsePhysicalMotionHardware)
+    }
+
     @Test func movementMagnitudeIsComputedFromVector() async throws {
         let vector = Vector3Value(x: 3, y: 4, z: 12)
         let magnitude = SensorSampleModel.magnitude(for: vector)
@@ -697,6 +702,41 @@ struct airpod_controlTests {
 
         let leftScore = scores.first(where: { $0.gesture.name == "CAL Left" })?.score ?? 0
         #expect(leftScore < 0.63, "leftScore=\(leftScore)")
+    }
+
+    @Test func availabilityRequiresFreshSamplesBeforeReportingConnected() {
+        let service = AirPodsAvailabilityService()
+        let now = Date()
+
+        let starting = service.snapshot(
+            isHeadphoneMotionAvailable: true,
+            authorizationState: .authorized,
+            streamState: .starting,
+            lastUpdateTimestamp: nil,
+            now: now
+        )
+        #expect(starting.connectionState == .connecting)
+        #expect(!starting.isConnected)
+
+        let stale = service.snapshot(
+            isHeadphoneMotionAvailable: true,
+            authorizationState: .authorized,
+            streamState: .active,
+            lastUpdateTimestamp: now.addingTimeInterval(-3),
+            now: now
+        )
+        #expect(stale.connectionState == .disconnected)
+        #expect(!stale.isConnected)
+
+        let fresh = service.snapshot(
+            isHeadphoneMotionAvailable: true,
+            authorizationState: .authorized,
+            streamState: .active,
+            lastUpdateTimestamp: now.addingTimeInterval(-0.5),
+            now: now
+        )
+        #expect(fresh.connectionState == .connected)
+        #expect(fresh.isConnected)
     }
 
     private func syntheticGesturePath(_ points: [(TimeInterval, Double, Double, Double)]) -> [AirGesturePoint] {

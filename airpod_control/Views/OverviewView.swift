@@ -111,8 +111,8 @@ struct OverviewView: View {
                     tint: availability.authorizationState == .authorized ? .green : .yellow
                 )
                 StatusPill(
-                    label: "Motion Available",
-                    value: availability.isHeadphoneMotionAvailable ? "Yes" : "No",
+                    label: "Sensor Reported",
+                    value: availability.isHeadphoneMotionAvailable ? "Available" : "Unavailable",
                     tint: availability.isHeadphoneMotionAvailable ? .green : .red
                 )
                 StatusPill(
@@ -130,6 +130,8 @@ struct OverviewView: View {
             return .green
         case .starting:
             return .yellow
+        case .waiting:
+            return .orange
         case .stopped:
             return .gray
         case .error:

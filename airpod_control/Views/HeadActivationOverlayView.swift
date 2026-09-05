@@ -14,7 +14,7 @@ struct HeadActivationOverlayView: View {
     let gateSpeed: Double
 
     private var size: CGFloat { 240 * scale }
-    private var radius: CGFloat { size * 0.36 }
+    private var radius: CGFloat { size * 0.40 }
     private var showsGateStatus: Bool { gateState != .inactive }
     private var gateColor: Color {
         switch gateState {
@@ -129,9 +129,18 @@ struct HeadGlobeView: View {
             // Build a Z-Y-X (yaw, pitch, roll) rotation matrix once per draw.
             let rot = RotationMatrix(yaw: yaw, pitch: pitch, roll: roll)
 
+            let globeBounds = CGRect(
+                x: centre.x - radius,
+                y: centre.y - radius,
+                width: radius * 2,
+                height: radius * 2
+            )
+            context.fill(Path(ellipseIn: globeBounds), with: .color(Color.cyan.opacity(0.08)))
+            context.stroke(Path(ellipseIn: globeBounds), with: .color(Color.white.opacity(0.72)), lineWidth: 1.6)
+
             // --- Latitude / longitude wireframe ---
             let latLines = 5
-            let lonLines = 6
+            let lonLines = 4
             let segments = 36
 
             for i in 1..<latLines {
@@ -148,8 +157,8 @@ struct HeadGlobeView: View {
                     let projected = project(rotated, centre: centre, focal: r * 4)
                     if s == 0 { path.move(to: projected) } else { path.addLine(to: projected) }
                 }
-                let alpha = 0.18 + 0.10 * (1 - abs(phi) / (.pi / 2))
-                context.stroke(path, with: .color(Color.white.opacity(alpha)), lineWidth: 1)
+                let alpha = 0.26 + 0.12 * (1 - abs(phi) / (.pi / 2))
+                context.stroke(path, with: .color(Color.white.opacity(alpha)), lineWidth: 0.9)
             }
 
             for j in 0..<lonLines {
@@ -166,7 +175,7 @@ struct HeadGlobeView: View {
                     let projected = project(rotated, centre: centre, focal: r * 4)
                     if s == 0 { path.move(to: projected) } else { path.addLine(to: projected) }
                 }
-                context.stroke(path, with: .color(Color.white.opacity(0.18)), lineWidth: 1)
+                context.stroke(path, with: .color(Color.white.opacity(0.28)), lineWidth: 0.9)
             }
 
             // Equatorial circle, slightly emphasised.
@@ -178,17 +187,22 @@ struct HeadGlobeView: View {
                 let projected = project(rotated, centre: centre, focal: r * 4)
                 if s == 0 { equator.move(to: projected) } else { equator.addLine(to: projected) }
             }
-            context.stroke(equator, with: .color(Color.cyan.opacity(0.55)), lineWidth: 1.2)
+            context.stroke(equator, with: .color(Color.cyan.opacity(0.88)), lineWidth: 1.7)
 
             // --- Front-of-head marker (so the globe orientation is unambiguous) ---
             let nose = rot.apply(SIMD3<Double>(0, 0, r))
             let nosePoint = project(nose, centre: centre, focal: r * 4)
             let noseDepth = nose.z // +ve = toward viewer, after rotation
             let noseAlpha = 0.45 + 0.55 * normalisedDepth(noseDepth, r: r)
+            var direction = Path()
+            direction.move(to: centre)
+            direction.addLine(to: nosePoint)
+            context.stroke(direction, with: .color(Color.orange), lineWidth: 2.4)
             let noseRect = CGRect(
-                x: nosePoint.x - 4, y: nosePoint.y - 4, width: 8, height: 8
+                x: nosePoint.x - 9, y: nosePoint.y - 9, width: 18, height: 18
             )
             context.fill(Path(ellipseIn: noseRect), with: .color(Color.orange.opacity(noseAlpha)))
+            context.stroke(Path(ellipseIn: noseRect), with: .color(.white.opacity(0.85)), lineWidth: 1)
 
             // --- Left and right ear dots ---
             // Ear vector in head-local space: ±X axis. Right ear = +X (matches CoreMotion
@@ -215,8 +229,8 @@ struct HeadGlobeView: View {
         let projected = project(world, centre: centre, focal: r * 4)
         let depth = world.z
         let depthN = normalisedDepth(depth, r: r)            // 0 (back) … 1 (front)
-        let radius = 5.0 + 5.0 * depthN                       // bigger when in front
-        let alpha = 0.35 + 0.65 * depthN
+        let radius = 11.0 + 9.0 * depthN                      // bigger when in front
+        let alpha = 0.72 + 0.28 * depthN
         let rect = CGRect(
             x: projected.x - radius / 2,
             y: projected.y - radius / 2,

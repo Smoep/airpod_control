@@ -33,14 +33,25 @@ enum MotionSensorError: LocalizedError {
 
 @MainActor
 final class MotionSensorService: NSObject, CMHeadphoneMotionManagerDelegate {
+    enum HeadphoneConnectionStatus: String {
+        case unknown
+        case connected
+        case disconnected
+    }
+
     private var manager = CMHeadphoneMotionManager()
     private(set) var isStreaming = false
+    private(set) var headphoneConnectionStatus: HeadphoneConnectionStatus = .unknown
     private var onConnected: (@MainActor @Sendable () -> Void)?
     private var onDisconnected: (@MainActor @Sendable () -> Void)?
 
     override init() {
         super.init()
-        configureConnectionMonitoring()
+        if RuntimeEnvironment.shouldUsePhysicalMotionHardware {
+            configureConnectionMonitoring()
+        } else {
+            dbgLog("BAIL MotionSensorService.configureConnectionMonitoring reason=test_or_preview")
+        }
     }
 
     var authorizationState: AuthorizationState {
@@ -137,11 +148,13 @@ final class MotionSensorService: NSObject, CMHeadphoneMotionManagerDelegate {
     }
 
     func headphoneMotionManagerDidConnect(_ manager: CMHeadphoneMotionManager) {
+        headphoneConnectionStatus = .connected
         dbgLog("INPUT headphone_connection state=connected available=\(manager.isDeviceMotionAvailable)")
         onConnected?()
     }
 
     func headphoneMotionManagerDidDisconnect(_ manager: CMHeadphoneMotionManager) {
+        headphoneConnectionStatus = .disconnected
         dbgLog("INPUT headphone_connection state=disconnected available=\(manager.isDeviceMotionAvailable)")
         onDisconnected?()
     }

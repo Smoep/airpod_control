@@ -15,7 +15,25 @@ final class AirPodsAvailabilityService {
         streamState: StreamState,
         lastUpdateTimestamp: Date?
     ) -> AirPodsAvailabilitySnapshot {
-        let now = Date()
+        snapshot(
+            isHeadphoneMotionAvailable: motionService.isHeadphoneMotionAvailable,
+            authorizationState: motionService.authorizationState,
+            streamState: streamState,
+            lastUpdateTimestamp: lastUpdateTimestamp,
+            now: Date()
+        )
+    }
+
+    /// Connection is deliberately sample-driven. `isDeviceMotionAvailable` says
+    /// whether Core Motion currently exposes the capability, but it can remain stale
+    /// while the AirPods are in their case and must not be presented as "Connected".
+    func snapshot(
+        isHeadphoneMotionAvailable: Bool,
+        authorizationState: AuthorizationState,
+        streamState: StreamState,
+        lastUpdateTimestamp: Date?,
+        now: Date
+    ) -> AirPodsAvailabilitySnapshot {
         let hasFreshSample = if let lastUpdateTimestamp {
             now.timeIntervalSince(lastUpdateTimestamp) <= staleConnectionInterval
         } else {
@@ -23,18 +41,18 @@ final class AirPodsAvailabilityService {
         }
 
         let connectionState: ConnectionState
-        if !motionService.isHeadphoneMotionAvailable {
-            connectionState = .unsupported
-        } else if hasFreshSample || streamState == .active || streamState == .starting {
+        if hasFreshSample {
             connectionState = .connected
+        } else if streamState == .starting {
+            connectionState = .connecting
         } else {
             connectionState = .disconnected
         }
 
         return AirPodsAvailabilitySnapshot(
             isConnected: connectionState == .connected,
-            isHeadphoneMotionAvailable: motionService.isHeadphoneMotionAvailable,
-            authorizationState: motionService.authorizationState,
+            isHeadphoneMotionAvailable: isHeadphoneMotionAvailable,
+            authorizationState: authorizationState,
             connectionState: connectionState
         )
     }

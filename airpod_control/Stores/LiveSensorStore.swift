@@ -349,16 +349,17 @@ final class LiveSensorStore {
             startNoSampleWatchdog()
             dbgLog("DONE start_streaming state=starting")
         } catch {
-            streamState = .error(error.localizedDescription)
-            statusMessage = "Unable to start"
-            if let motionError = error as? MotionSensorError {
-                errorMessage = friendlyMessage(for: motionError)
-            } else {
-                errorMessage = error.localizedDescription
-            }
             dbgLog("BAIL start_streaming reason=throw error=\(error.localizedDescription) diagnostics=\(streamDiagnostics)")
             if let motionError = error as? MotionSensorError, case .unavailable = motionError {
-                scheduleAutomaticReconnect(reason: "start_unavailable")
+                enterWaitingForAirPods(reason: "start_unavailable")
+            } else {
+                streamState = .error(error.localizedDescription)
+                statusMessage = "Unable to start"
+                if let motionError = error as? MotionSensorError {
+                    errorMessage = friendlyMessage(for: motionError)
+                } else {
+                    errorMessage = error.localizedDescription
+                }
             }
         }
     }
@@ -390,7 +391,16 @@ final class LiveSensorStore {
     private func handleHeadphonesConnected() {
         dbgLog("STATE headphone_connection disconnected -> connected tracking=\(isGestureDetectionEnabled) stream=\(streamState.label)")
         guard isGestureDetectionEnabled else { return }
-        guard !motionService.isStreaming else { return }
+        if motionService.isStreaming {
+            // A recovery probe may already be open before Core Motion finally emits
+            // its delayed connection callback. Restart once at that authoritative
+            // event, but never cycle merely because samples are slow to arrive.
+            if case .waiting = streamState {
+                restartMotionInput(reason: "headphones_connected_while_waiting")
+            }
+            return
+        }
+        guard !hasFreshMotionSample else { return }
 
         restartMotionInput(reason: "headphones_connected")
     }
@@ -399,28 +409,20 @@ final class LiveSensorStore {
         dbgLog("STATE headphone_connection connected -> disconnected tracking=\(isGestureDetectionEnabled) stream=\(streamState.label)")
         guard isGestureDetectionEnabled else { return }
 
-        motionService.stopStreaming()
-        stopNoSampleWatchdog()
-        streamStartTimestamp = nil
-        resetGestureTrackingRuntime()
-        streamState = .starting
-        statusMessage = "Waiting for AirPods motion…"
-        errorMessage = nil
-        scheduleAutomaticReconnect(reason: "headphones_disconnected")
+        enterWaitingForAirPods(reason: "headphones_disconnected")
     }
 
     private func handleMotionStreamError(_ error: MotionSensorError) {
         dbgLog("BAIL start_streaming reason=motion_callback_error error=\(error.localizedDescription)")
-        motionService.stopStreaming()
-        stopNoSampleWatchdog()
-        streamState = .error(error.localizedDescription)
-        statusMessage = "Motion interrupted — reconnecting…"
-        errorMessage = friendlyMessage(for: error)
-
         if case .unauthorized = error {
+            motionService.stopStreaming()
+            stopNoSampleWatchdog()
+            streamState = .error(error.localizedDescription)
+            statusMessage = "Motion permission required"
+            errorMessage = friendlyMessage(for: error)
             cancelAutomaticReconnect()
         } else {
-            scheduleAutomaticReconnect(reason: "stream_error")
+            enterWaitingForAirPods(reason: "stream_error")
         }
     }
 
@@ -455,16 +457,49 @@ final class LiveSensorStore {
                     self.automaticReconnectTask = nil
                     return
                 }
-                guard self.motionService.isHeadphoneMotionAvailable else {
-                    dbgVerboseLog("STATE motion_reconnect waiting reason=device_unavailable")
+                let delegateConnected = self.motionService.headphoneConnectionStatus == .connected
+                let sensorReportedAvailable = self.motionService.isHeadphoneMotionAvailable
+                guard delegateConnected || sensorReportedAvailable else {
+                    dbgVerboseLog("STATE motion_reconnect waiting connection=\(self.motionService.headphoneConnectionStatus.rawValue) available=\(self.motionService.isHeadphoneMotionAvailable)")
                     continue
                 }
 
                 self.automaticReconnectTask = nil
-                self.restartMotionInput(reason: "automatic_device_available")
+                dbgLog("STATE motion_reconnect probe connection=\(self.motionService.headphoneConnectionStatus.rawValue) available=\(sensorReportedAvailable)")
+                self.restartMotionInput(reason: delegateConnected ? "automatic_connected" : "automatic_probe")
                 return
             }
         }
+    }
+
+    private var hasFreshMotionSample: Bool {
+        guard let lastUpdateTimestamp else { return false }
+        return Date().timeIntervalSince(lastUpdateTimestamp) < streamStaleSampleTimeout
+    }
+
+    private func enterWaitingForAirPods(reason: String) {
+        dbgLog("STATE motion_input waiting reason=\(reason)")
+        motionService.stopStreaming()
+        stopNoSampleWatchdog()
+        streamStartTimestamp = nil
+        lastUpdateTimestamp = nil
+        previousSampleTimestamp = nil
+        resetGestureTrackingRuntime()
+        streamState = .waiting
+        statusMessage = "Waiting for AirPods motion…"
+        errorMessage = nil
+        scheduleAutomaticReconnect(reason: reason)
+    }
+
+    private func keepMotionStreamOpenWhileWaiting(reason: String) {
+        dbgLog("STATE motion_input waiting_stream_open reason=\(reason) isStreaming=\(motionService.isStreaming)")
+        streamStartTimestamp = nil
+        lastUpdateTimestamp = nil
+        previousSampleTimestamp = nil
+        resetGestureTrackingRuntime()
+        streamState = .waiting
+        statusMessage = "Waiting for AirPods motion…"
+        errorMessage = nil
     }
 
     private var authorizationStateAllowsAutomaticReconnect: Bool {
@@ -895,11 +930,8 @@ final class LiveSensorStore {
             let startedFor = Date().timeIntervalSince(streamStartTimestamp ?? Date())
             guard startedFor >= streamStartupNoSampleTimeout else { return }
 
-            streamState = .error("No samples received after start.")
-            statusMessage = "No data received"
-            errorMessage = "No samples received after Start Stream. \(streamDiagnostics). If your AirPods are connected, verify Motion & Fitness permission and that headphone motion is supported on the current connection."
-            dbgLog(String(format: "BAIL start_streaming reason=no_samples started=%.2fs diagnostics=%@", startedFor, streamDiagnostics))
-            restartMotionInput(reason: "no_samples")
+            dbgLog(String(format: "STATE start_streaming waiting reason=no_samples started=%.2fs action=keep_stream_open diagnostics=%@", startedFor, streamDiagnostics))
+            keepMotionStreamOpenWhileWaiting(reason: "no_samples")
 
         case .active:
             guard isGestureDetectionEnabled || isRecordingGestureArmed || isRecordingGestureActive else { return }
@@ -907,10 +939,10 @@ final class LiveSensorStore {
             let staleFor = Date().timeIntervalSince(lastUpdateTimestamp)
             guard staleFor >= streamStaleSampleTimeout else { return }
 
-            dbgLog(String(format: "WARN motion_stream_stale stale=%.1fs timeout=%.1fs action=reconnect diagnostics=%@", staleFor, streamStaleSampleTimeout, streamDiagnostics))
-            reconnectMotionInput()
+            dbgLog(String(format: "WARN motion_stream_stale stale=%.1fs timeout=%.1fs action=keep_stream_open diagnostics=%@", staleFor, streamStaleSampleTimeout, streamDiagnostics))
+            keepMotionStreamOpenWhileWaiting(reason: "stale_samples")
 
-        case .stopped, .error:
+        case .stopped, .waiting, .error:
             return
         }
     }
@@ -973,7 +1005,10 @@ final class LiveSensorStore {
                 // same throttled rate. The globe is rendered as a mirror — when the
                 // user turns their head right, the nose/right-ear should move to the
                 // viewer's right. CoreMotion yaw rotates the opposite way, so we negate it.
-                let scale = min(max(recognitionSettings.movementScale, 0.5), 8.0)
+                // The wireframe projection makes small real-world rotations look
+                // quieter than the 2D gesture cursor. Apply display-only gain so the
+                // overlay gives clear feedback without changing recognition data.
+                let scale = min(max(recognitionSettings.movementScale * 1.75, 1.0), 10.0)
                 // Smoothing has been removed from the user-facing settings: globe and
                 // cursor publish raw scaled angles every motion frame for a 1:1 feel.
                 let alpha = 1.0
@@ -1998,7 +2033,7 @@ final class LiveSensorStore {
         switch streamState {
         case .active, .starting:
             return
-        case .stopped, .error(_):
+        case .stopped, .waiting, .error(_):
             startStreaming()
         }
     }

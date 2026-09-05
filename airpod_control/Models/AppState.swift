@@ -10,6 +10,7 @@ enum ConnectionState: String, Codable {
 
 enum StreamState: Equatable {
     case stopped
+    case waiting
     case starting
     case active
     case error(String)
@@ -18,6 +19,8 @@ enum StreamState: Equatable {
         switch self {
         case .stopped:
             return "Stopped"
+        case .waiting:
+            return "Waiting for AirPods"
         case .starting:
             return "Starting"
         case .active:
