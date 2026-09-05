@@ -584,6 +584,11 @@ final class LiveSensorStore {
         statusMessage = "Debug log cleared"
     }
 
+    func clearGestureCorpus() {
+        DebugFileLog.clearGestureCorpus(reason: "settings_button")
+        statusMessage = "Gesture corpus cleared"
+    }
+
     func resetGestureSettingsToDefaults() {
         recognitionSettings = AirGestureRecognitionSettings()
         appearanceSettings = AirGestureAppearanceSettings()
@@ -1445,6 +1450,21 @@ final class LiveSensorStore {
             minimumPathLength: 0
         )
         let ranked = evaluation.matches
+        let best = ranked.first
+        let secondScore = ranked.dropFirst().first?.score ?? 0
+        let margin = (best?.score ?? 0) - secondScore
+        let replayOutcome: String
+        if let best {
+            if best.score < recognitionSettings.confidenceThreshold {
+                replayOutcome = "below_threshold"
+            } else if margin < minimumDiscreteMatchMargin {
+                replayOutcome = "ambiguous"
+            } else {
+                replayOutcome = "fire"
+            }
+        } else {
+            replayOutcome = candidates.isEmpty ? "no_candidates" : "no_match"
+        }
 
         // Log every candidate so the score field in the UI plus the diagnostics log
         // explain why a gesture did or didn't fire.
@@ -1454,13 +1474,34 @@ final class LiveSensorStore {
         dbgLog("DECISION discrete_eval path=\(pathCount) candidates=\(candidates.count) scores=[\(summary)] threshold=\(recognitionSettings.confidenceThreshold)")
         dbgLog("GESTURE_ATTEMPT intended=\"\(calibrationTargetGestureName)\" \(gesturePathSummary(detectionPath)) scores=[\(summary)] threshold=\(recognitionSettings.confidenceThreshold)")
         if let replayJSON = GestureReplayLogEncoder.encode(
+            capturedAt: sampleTimestamp,
+            activationLayer: recognitionSettings.activationLayer.rawValue,
             intended: calibrationTargetGestureName,
+            outcome: replayOutcome,
+            matched: best?.gesture.name,
             path: detectionPath,
             scores: ranked.map { GestureReplayLogEncoder.Score(name: $0.gesture.name, score: $0.score) },
             threshold: recognitionSettings.confidenceThreshold,
             marginThreshold: minimumDiscreteMatchMargin
         ) {
             dbgLog("GESTURE_REPLAY \(replayJSON)")
+        }
+        // Keep the corpus at full capture resolution. The normal log uses a compact
+        // 64-point payload to stay readable, but Trackpad Control showed that lossy or
+        // synthetic inputs can give the wrong answer when evaluating matcher changes.
+        if let corpusJSON = GestureReplayLogEncoder.encode(
+            capturedAt: sampleTimestamp,
+            activationLayer: recognitionSettings.activationLayer.rawValue,
+            intended: calibrationTargetGestureName,
+            outcome: replayOutcome,
+            matched: best?.gesture.name,
+            path: detectionPath,
+            scores: ranked.map { GestureReplayLogEncoder.Score(name: $0.gesture.name, score: $0.score) },
+            threshold: recognitionSettings.confidenceThreshold,
+            marginThreshold: minimumDiscreteMatchMargin,
+            maximumPoints: detectionPath.count
+        ) {
+            DebugFileLog.appendGestureReplay(corpusJSON)
         }
         for (breakdownIndex, breakdown) in evaluation.breakdowns.enumerated() {
             guard breakdownIndex < 8 || DebugFileLog.isVerboseEnabled else { continue }
@@ -1492,11 +1533,9 @@ final class LiveSensorStore {
             dbgLog("DECISION score_breakdown_omitted count=\(evaluation.breakdowns.count - 8) reason=verbose_frame_logging_disabled")
         }
 
-        if let best = ranked.first {
+        if let best {
             lastRecognizedGestureName = best.gesture.name
             lastRecognizedGestureScore = best.score
-            let secondScore = ranked.dropFirst().first?.score ?? 0
-            let margin = best.score - secondScore
 
             if best.score >= recognitionSettings.confidenceThreshold && margin >= minimumDiscreteMatchMargin {
                 lastRecognizedGestureExecuted = true

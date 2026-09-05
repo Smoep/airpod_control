@@ -39,7 +39,7 @@ struct airpod_controlApp: App {
             AirpodControlMenuBarView(store: store)
         } label: {
             Label(
-                "airpod_control",
+                "AirPods Control",
                 systemImage: store.isGestureDetectionEnabled ? "dot.radiowaves.left.and.right" : "pause.circle"
             )
         }

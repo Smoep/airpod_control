@@ -138,7 +138,11 @@ struct airpod_controlTests {
         ])
 
         let json = try #require(GestureReplayLogEncoder.encode(
+            capturedAt: Date(timeIntervalSince1970: 1_786_000_000.125),
+            activationLayer: "Always On",
             intended: "CAL 01 Right",
+            outcome: "fire",
+            matched: "CAL 01 Right",
             path: path,
             scores: [GestureReplayLogEncoder.Score(name: "CAL 01 Right", score: 0.87654)],
             threshold: 0.63,
@@ -147,14 +151,27 @@ struct airpod_controlTests {
         ))
         let record = try JSONDecoder().decode(GestureReplayLogEncoder.Record.self, from: Data(json.utf8))
 
-        #expect(record.schema == 1)
+        #expect(record.schema == 2)
+        #expect(record.capturedAt == 1_786_000_000.125)
+        #expect(record.activationLayer == "Always On")
         #expect(record.intended == "CAL 01 Right")
+        #expect(record.outcome == "fire")
+        #expect(record.matched == "CAL 01 Right")
         #expect(record.sourceCount == path.count)
         #expect(record.points.count == 4)
         #expect(record.points.first?.t == 0)
         #expect(record.points.last?.t == 1)
         #expect(record.points.last?.yaw == -0.4)
         #expect(record.scores.first?.score == 0.877)
+    }
+
+    @Test func debugLogCompactionKeepsOnlyCompleteRecentLines() throws {
+        let original = Data("partial-prefix\nline-two\nline-three\n".utf8)
+        let compacted = DebugFileLog.compactedLineData(original, retaining: 22)
+        let text = try #require(String(data: compacted, encoding: .utf8))
+
+        #expect(text == "line-two\nline-three\n")
+        #expect(text.first != "\n")
     }
 
     @Test func gestureBackupPayloadRoundTripsCurrentTemplatesAndSettings() throws {

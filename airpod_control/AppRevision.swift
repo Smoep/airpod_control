@@ -4,5 +4,5 @@ import Foundation
 /// Settings tab so the user can tell which build is running without rebuilding
 /// or re-deploying the app.
 enum AppRevision {
-    static let current = "2026-04-27-r66"
+    static let current = "v1.0.0"
 }

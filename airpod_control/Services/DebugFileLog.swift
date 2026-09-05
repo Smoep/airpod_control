@@ -12,11 +12,22 @@ nonisolated func dbgVerboseLog(_ msg: @autoclosure () -> String) {
 enum DebugFileLog {
     nonisolated static let appName = "airpod_control"
     nonisolated static let logPath = "/tmp/\(appName).log"
+    nonisolated static let gestureCorpusPath = NSHomeDirectory()
+        + "/Library/Application Support/AirpodControl/gesture-attempts.jsonl"
     nonisolated static let debugModeKey = "airpod_control.debugMode"
     nonisolated static let verboseModeKey = "airpod_control.verboseDebugMode"
 
+    // Trackpad Control showed that diagnostics from an always-on input callback can
+    // grow for days even when the in-memory buffers are bounded. Keep enough recent
+    // context for diagnosis while preventing either file from growing without limit.
+    nonisolated static let maximumLogBytes = 5 * 1_024 * 1_024
+    nonisolated static let retainedLogBytes = 4 * 1_024 * 1_024
+    nonisolated static let maximumGestureCorpusBytes = 20 * 1_024 * 1_024
+    nonisolated static let retainedGestureCorpusBytes = 16 * 1_024 * 1_024
+
     nonisolated private static let enabledLock = OSAllocatedUnfairLock(initialState: false)
     nonisolated private static let verboseLock = OSAllocatedUnfairLock(initialState: false)
+    nonisolated private static let fileSizeLock = OSAllocatedUnfairLock(initialState: [String: Int]())
     nonisolated private static let writeQueue = DispatchQueue(label: "com.jos.airpod-control.debug-file-log")
 
     nonisolated static var isEnabled: Bool {
@@ -94,6 +105,15 @@ enum DebugFileLog {
         log("debug_log cleared reason=\(reason) path=\(logPath)")
     }
 
+    nonisolated static func clearGestureCorpus(reason: String) {
+        writeQueue.async {
+            truncateFile(atPath: gestureCorpusPath)
+        }
+
+        guard isEnabled else { return }
+        log("gesture_corpus cleared reason=\(reason) path=\(gestureCorpusPath)")
+    }
+
     nonisolated static func log(_ message: @autoclosure () -> String) {
         guard isEnabled else { return }
 
@@ -110,10 +130,22 @@ enum DebugFileLog {
         log(message())
     }
 
+    /// Persist one self-contained JSON object for every evaluated live gesture.
+    /// Unlike the per-launch debug log, this corpus survives relaunches so matcher
+    /// changes can be replayed against actual use rather than recordings alone.
+    nonisolated static func appendGestureReplay(_ json: String) {
+        guard isEnabled else { return }
+        append(
+            line: json,
+            path: gestureCorpusPath,
+            maximumBytes: maximumGestureCorpusBytes,
+            retainedBytes: retainedGestureCorpusBytes
+        )
+    }
+
     nonisolated private static func truncate(reason: String) {
         writeQueue.async {
-            let url = URL(fileURLWithPath: logPath)
-            try? Data().write(to: url, options: .atomic)
+            truncateFile(atPath: logPath)
         }
 
         Task { @MainActor in
@@ -122,12 +154,38 @@ enum DebugFileLog {
     }
 
     nonisolated private static func append(line: String) {
+        append(
+            line: line,
+            path: logPath,
+            maximumBytes: maximumLogBytes,
+            retainedBytes: retainedLogBytes
+        )
+    }
+
+    nonisolated private static func append(
+        line: String,
+        path: String,
+        maximumBytes: Int,
+        retainedBytes: Int
+    ) {
         writeQueue.async {
-            let url = URL(fileURLWithPath: logPath)
+            let url = URL(fileURLWithPath: path)
             let data = Data((line + "\n").utf8)
 
-            if !FileManager.default.fileExists(atPath: logPath) {
-                FileManager.default.createFile(atPath: logPath, contents: nil)
+            try? FileManager.default.createDirectory(
+                at: url.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+
+            let existingByteCount = compactFileIfNeeded(
+                at: url,
+                incomingByteCount: data.count,
+                maximumBytes: maximumBytes,
+                retainedBytes: retainedBytes
+            )
+
+            if !FileManager.default.fileExists(atPath: path) {
+                FileManager.default.createFile(atPath: path, contents: nil)
             }
 
             do {
@@ -135,10 +193,63 @@ enum DebugFileLog {
                 defer { try? handle.close() }
                 try handle.seekToEnd()
                 try handle.write(contentsOf: data)
+                fileSizeLock.withLock { $0[path] = existingByteCount + data.count }
             } catch {
                 try? data.write(to: url, options: .atomic)
+                fileSizeLock.withLock { $0[path] = data.count }
             }
         }
+    }
+
+    nonisolated static func compactedLineData(_ data: Data, retaining maximumBytes: Int) -> Data {
+        guard maximumBytes > 0, data.count > maximumBytes else { return data }
+
+        var suffix = Data(data.suffix(maximumBytes))
+        // The retained suffix will usually begin in the middle of a log/JSONL record.
+        // Drop that fragment so every remaining line is independently parseable.
+        if let newline = suffix.firstIndex(of: 0x0A) {
+            suffix.removeSubrange(suffix.startIndex...newline)
+        } else {
+            suffix.removeAll(keepingCapacity: false)
+        }
+        return suffix
+    }
+
+    nonisolated private static func compactFileIfNeeded(
+        at url: URL,
+        incomingByteCount: Int,
+        maximumBytes: Int,
+        retainedBytes: Int
+    ) -> Int {
+        let path = url.path
+        let currentByteCount = fileSizeLock.withLock { sizes -> Int in
+            if let knownSize = sizes[path] {
+                return knownSize
+            }
+            let attributes = try? FileManager.default.attributesOfItem(atPath: path)
+            let measuredSize = (attributes?[.size] as? NSNumber)?.intValue ?? 0
+            sizes[path] = measuredSize
+            return measuredSize
+        }
+        guard currentByteCount + incomingByteCount > maximumBytes,
+              let existing = try? Data(contentsOf: url) else {
+            return currentByteCount
+        }
+
+        let compacted = compactedLineData(existing, retaining: retainedBytes)
+        try? compacted.write(to: url, options: .atomic)
+        fileSizeLock.withLock { $0[path] = compacted.count }
+        return compacted.count
+    }
+
+    nonisolated private static func truncateFile(atPath path: String) {
+        let url = URL(fileURLWithPath: path)
+        try? FileManager.default.createDirectory(
+            at: url.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try? Data().write(to: url, options: .atomic)
+        fileSizeLock.withLock { $0[path] = 0 }
     }
 
     nonisolated private static func boolFromPreferencesFile(forKey key: String, domainName: String) -> Bool? {
@@ -187,7 +298,11 @@ enum GestureReplayLogEncoder {
 
     struct Record: Codable, Equatable {
         let schema: Int
+        let capturedAt: Double
+        let activationLayer: String
         let intended: String
+        let outcome: String
+        let matched: String?
         let sourceCount: Int
         let duration: Double
         let threshold: Double
@@ -197,7 +312,11 @@ enum GestureReplayLogEncoder {
     }
 
     static func encode(
+        capturedAt: Date = Date(),
+        activationLayer: String = "unknown",
         intended: String,
+        outcome: String = "attempt",
+        matched: String? = nil,
         path: [AirGesturePoint],
         scores: [Score],
         threshold: Double,
@@ -205,8 +324,12 @@ enum GestureReplayLogEncoder {
         maximumPoints: Int = 64
     ) -> String? {
         let record = Record(
-            schema: 1,
+            schema: 2,
+            capturedAt: rounded(capturedAt.timeIntervalSince1970, places: 1_000),
+            activationLayer: activationLayer,
             intended: intended,
+            outcome: outcome,
+            matched: matched,
             sourceCount: path.count,
             duration: rounded((path.last?.timestamp ?? 0) - (path.first?.timestamp ?? 0)),
             threshold: rounded(threshold),

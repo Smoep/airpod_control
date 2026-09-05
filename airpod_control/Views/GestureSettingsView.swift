@@ -40,8 +40,22 @@ struct GestureSettingsView: View {
                         }
                     }
 
+                    HStack(spacing: 12) {
+                        Text(DebugFileLog.gestureCorpusPath)
+                            .font(.footnote.monospaced())
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+
+                        Spacer()
+
+                        Button("Clear Corpus") {
+                            store.clearGestureCorpus()
+                        }
+                    }
+
                     settingExplanation(
-                        "Normal debug logging writes compact replay records and recognition decisions. Verbose logging adds per-frame sensor lines for low-level device debugging."
+                        "Normal debug logging writes compact recognition decisions and keeps a persistent corpus of real gesture attempts for offline matcher analysis. Verbose logging adds per-frame sensor lines for low-level device debugging. Both files are size-capped."
                     )
                 }
 
